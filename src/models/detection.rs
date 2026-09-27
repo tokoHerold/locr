@@ -1,14 +1,17 @@
 use std::cmp::max;
 
-use image::DynamicImage;
+use image::{DynamicImage, GrayImage, Luma};
+use imageproc::region_labelling::{Connectivity, connected_components};
 use ndarray::Array4;
-use ort::session::SessionOutputs;
+use ort::{
+    inputs,
+    session::{Session, SessionOutputs},
+    value::TensorRef,
+};
 
 use crate::detector::{BoundingBox, Detector};
 
 pub struct PaddleDetector {
-    /// Path to the model
-    pub model_path: String,
     /// Minimum certainty of pixels to be recognized as text; range in [0.0, 1.0]
     pub detection_threshold: f32,
     /// Minimum confidence for an entire bounding box to count as text; range in [0.0, 1.0]
@@ -25,10 +28,19 @@ pub struct PaddleDetector {
     normalization_std: [f32; 3],
 }
 
+#[derive(Debug, Clone)]
+struct TextArea {
+    x_min: u32,
+    x_max: u32,
+    y_min: u32,
+    y_max: u32,
+    pixel_count: usize,
+    score_sum: f32,
+}
+
 impl PaddleDetector {
-    pub fn new(model_path: &str) -> Self {
+    pub fn new() -> Self {
         Self {
-            model_path: model_path.to_string(),
             detection_threshold: 0.3,
             box_threshold: 0.5,
             unclip_ratio: 1.6,
@@ -85,11 +97,108 @@ impl Detector for PaddleDetector {
         tensor
     }
 
-    fn postprocess(&self, model_output: &SessionOutputs) -> Vec<BoundingBox> {
-        todo!()
+    fn postprocess(&self, model_output: &SessionOutputs, image: &DynamicImage) -> Vec<BoundingBox> {
+        // Extract shape & data from model output
+        let (shape, output_value) = model_output[0]
+            .try_extract_tensor::<f32>()
+            .expect("Failed to extract model output");
+        let height = shape[2] as usize;
+        let width = shape[3] as usize;
+
+        // Create binary mask for image: filter out low probabilities
+        let binary_pixels: Vec<u8> = output_value
+            .iter()
+            .map(|&probability| {
+                if probability > self.detection_threshold {
+                    255 // Text detected
+                } else {
+                    0 // No text detected
+                }
+            })
+            .collect();
+        let binary_mask = GrayImage::from_raw(width as u32, height as u32, binary_pixels)
+            .expect("Failed to allocate grayscale image");
+
+        // Extract connected components from heatmap
+        let mut text_areas: Vec<Option<TextArea>> = vec![None; 128];
+        // Labels each connected region with a unique number
+        let labeled_image = connected_components(&binary_mask, Connectivity::Eight, Luma([0u8]));
+        const BACKGROUND: Luma<u32> = Luma([0u32]);
+        for ((x, y, &label), &score) in labeled_image.enumerate_pixels().zip(output_value) {
+            if label == BACKGROUND {
+                continue; // No text in pixel
+            }
+
+            let label = label.0[0] as usize; // Extract integer out of Luma struct
+            while label > text_areas.len() {
+                let space = (label + 63) & !63; // Round up to next multiple of 64
+                text_areas.resize_with(space, || None); // Ensure vec is big enough
+            }
+            if let Some(text_area) = &mut text_areas[label] {
+                text_area.score_sum += score;
+                text_area.pixel_count += 1;
+                if x < text_area.x_min {
+                    text_area.x_min = x;
+                }
+                if x > text_area.x_max {
+                    text_area.x_max = x;
+                }
+                text_area.y_max = y;
+            } else {
+                text_areas[label] = Some(TextArea {
+                    x_min: x,
+                    x_max: x,
+                    y_max: y,
+                    y_min: y,
+                    pixel_count: 1,
+                    score_sum: score,
+                })
+            }
+        }
+
+        // Scale factor: Original image vs inference output
+        let original_width = image.width();
+        let original_height = image.height();
+        let scale_x = original_width as f32 / width as f32;
+        let scale_y = original_height as f32 / height as f32;
+
+        // Convert extracted text areas into bounding boxes
+        text_areas
+            .iter()
+            .flatten()
+            .filter_map(|text_area| -> Option<BoundingBox> {
+                // Filter out results with undesirable confidence
+                let width = text_area.x_max - text_area.x_min + 1;
+                let height = text_area.y_max - text_area.y_min + 1;
+                let average_score = text_area.score_sum / text_area.pixel_count as f32;
+                if average_score < self.box_threshold || width < 4 || height < 4 {
+                    return None;
+                }
+
+                // Unclipping: Grow AABB in all directions
+                let area = (width * height) as f32;
+                let perimter = (2 * (width + height)) as f32;
+                let growth_distance = area * self.unclip_ratio / perimter;
+
+                // Rescale tensor boxes to original image
+                Some(BoundingBox {
+                    x1: (((text_area.x_min as f32 - growth_distance) * scale_x).round() as u32)
+                        .clamp(0, original_width),
+                    x2: (((text_area.x_max as f32 + growth_distance) * scale_x).round() as u32)
+                        .clamp(0, original_width),
+                    y1: (((text_area.y_min as f32 - growth_distance) * scale_y).round() as u32)
+                        .clamp(0, original_height),
+                    y2: (((text_area.y_max as f32 + growth_distance) * scale_y).round() as u32)
+                        .clamp(0, original_height),
+                })
+            })
+            .collect()
     }
 
-    fn infer(&self, input: &Array4<f32>) -> SessionOutputs<'_> {
-        todo!()
+    fn infer<'a>(&self, session: &'a mut Session, input: &Array4<f32>) -> SessionOutputs<'a> {
+        let tensor = TensorRef::from_array_view(input.view()).unwrap();
+        session
+            .run(inputs!["x" => tensor])
+            .expect("An error occured during detection inference.")
     }
 }

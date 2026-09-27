@@ -1,10 +1,32 @@
-mod models;
 mod detector;
+mod models;
 mod recongizer;
 
-use crate::models::detection::PaddleDetector;
+use image::ImageReader;
+use ort::session::Session;
+
+use crate::{detector::Detector, models::detection::PaddleDetector};
 
 fn main() {
-    let _detector  = PaddleDetector::new("models/detection.onnx");
+    let detector = PaddleDetector::new();
+    let mut session = Session::builder()
+        .unwrap()
+        .commit_from_file("data/models/det.onnx")
+        .expect("Failed to load detection model!");
+    let image = ImageReader::open("data/test.png")
+        .expect("Could not load image")
+        .decode()
+        .expect("Invalid image format");
+    let bounding_boxes = detector.detect(&mut session, &image);
+    for bb in bounding_boxes {
+        println!(
+            "Detected text at pixel ({:}, {:}), width: {:}, height: {:}",
+            bb.x1,
+            bb.y1,
+            bb.x2 - bb.x1,
+            bb.y2 - bb.y1,
+        )
+    }
+
     println!("Hello, world!");
 }

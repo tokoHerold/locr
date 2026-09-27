@@ -1,12 +1,12 @@
 use image::DynamicImage;
 use ndarray::Array4;
-use ort::session::SessionOutputs;
+use ort::session::{Session, SessionOutputs};
 
 pub struct BoundingBox {
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32
+    pub x1: u32,
+    pub x2: u32,
+    pub y1: u32,
+    pub y2: u32
 }
 
 pub trait Detector {
@@ -30,7 +30,7 @@ pub trait Detector {
     /// # Returns
     ///
     /// A list of bounding boxes around each text segment.
-    fn postprocess(&self, model_output: &SessionOutputs) -> Vec<BoundingBox>;
+    fn postprocess(&self, model_output: &SessionOutputs, image: &DynamicImage) -> Vec<BoundingBox>;
 
     /// Runs the data through the underlying model
     ///
@@ -41,7 +41,7 @@ pub trait Detector {
     /// # Returns
     ///
     /// Ouput of the model
-    fn infer(&self, input: &Array4<f32>) -> SessionOutputs<'_>;
+    fn infer<'a>(&self, session: &'a mut Session, input: &Array4<f32>) -> SessionOutputs<'a>;
 
     /// Retrieves bounding boxes for all text occurences in a supplied image.
     ///
@@ -52,10 +52,10 @@ pub trait Detector {
     /// # Returns
     /// A list of bounding boxes for each text element.
     ///
-    fn detect(&self, image: &DynamicImage) -> Vec<BoundingBox> {
+    fn detect(&self, session: &mut Session, image: &DynamicImage) -> Vec<BoundingBox> {
         let tensor = self.preprocess(image);
-        let model_output = self.infer(&tensor);
-        self.postprocess(&model_output)
+        let model_output = self.infer(session, &tensor);
+        self.postprocess(&model_output, image)
     }
 }
 
