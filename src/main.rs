@@ -21,10 +21,7 @@ fn main() {
     for bb in bounding_boxes {
         println!(
             "Detected text at pixel ({:}, {:}), width: {:}, height: {:}",
-            bb.x1,
-            bb.y1,
-            bb.x2 - bb.x1,
-            bb.y2 - bb.y1,
+            bb.x, bb.y, bb.width, bb.height
         )
     }
 

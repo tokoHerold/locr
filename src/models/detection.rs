@@ -180,17 +180,16 @@ impl Detector for PaddleDetector {
                 let perimter = (2 * (width + height)) as f32;
                 let growth_distance = area * self.unclip_ratio / perimter;
 
+                let x1 = (((text_area.x_min as f32 - growth_distance) * scale_x).round() as u32)
+                    .clamp(0, original_width);
+                let x2 = (((text_area.x_max as f32 + growth_distance) * scale_x).round() as u32)
+                    .clamp(0, original_width);
+                let y1 = (((text_area.y_min as f32 - growth_distance) * scale_y).round() as u32)
+                    .clamp(0, original_height);
+                let y2 = (((text_area.y_max as f32 + growth_distance) * scale_y).round() as u32)
+                    .clamp(0, original_height);
                 // Rescale tensor boxes to original image
-                Some(BoundingBox {
-                    x1: (((text_area.x_min as f32 - growth_distance) * scale_x).round() as u32)
-                        .clamp(0, original_width),
-                    x2: (((text_area.x_max as f32 + growth_distance) * scale_x).round() as u32)
-                        .clamp(0, original_width),
-                    y1: (((text_area.y_min as f32 - growth_distance) * scale_y).round() as u32)
-                        .clamp(0, original_height),
-                    y2: (((text_area.y_max as f32 + growth_distance) * scale_y).round() as u32)
-                        .clamp(0, original_height),
-                })
+                Some(BoundingBox { x: x1, y: y1, width: x2 - x1, height: y2 - y1, })
             })
             .collect()
     }

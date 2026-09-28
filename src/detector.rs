@@ -3,10 +3,10 @@ use ndarray::Array4;
 use ort::session::{Session, SessionOutputs};
 
 pub struct BoundingBox {
-    pub x1: u32,
-    pub x2: u32,
-    pub y1: u32,
-    pub y2: u32
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32
 }
 
 pub trait Detector {
@@ -47,6 +47,7 @@ pub trait Detector {
     ///
     /// # Arguments
     ///
+    /// * `session` - Handle to ONNX session
     /// * `image` - Image to detect text on, in RGB format
     ///
     /// # Returns
