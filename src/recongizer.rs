@@ -1,4 +1,4 @@
-use image::{DynamicImage, SubImage, imageops::crop_imm};
+use image::RgbImage ;
 use ndarray::Array4;
 use ort::session::{Session, SessionOutputs};
 
@@ -14,12 +14,13 @@ pub trait Recognizer {
     ///
     /// # Arguments
     ///
-    /// * `image` - RGB crop to run recognition on
+    /// * `image` - reference to RGB image
+    /// * `bounding_box` - box to crop image
     ///
     /// # Returns
     ///
     /// A tensor that can be inserted into the input layer of the model.
-    fn preprocess(&self, crop: &SubImage<&DynamicImage>) -> Array4<f32>;
+    fn preprocess(&self, image: &RgbImage, bounding_box: &BoundingBox) -> Array4<f32>;
 
     /// Extracts decoded text and confidence from the model output
     ///
@@ -54,10 +55,9 @@ pub trait Recognizer {
     /// # Returns
     ///
     /// Extracted text for all bounding boxes, with their confidence score.
-    fn recognize(&self, session: &mut Session, image: &DynamicImage, bounding_boxes: Vec<BoundingBox>) -> Vec<RecognitionResult> {
-        bounding_boxes.iter().map(|bb| -> RecognitionResult {
-            let crop = crop_imm(image, bb.x, bb.y, bb.width, bb.height);
-            let tensor = self.preprocess(&crop);
+    fn recognize(&self, session: &mut Session, image: &RgbImage, bounding_boxes: Vec<BoundingBox>) -> Vec<RecognitionResult> {
+        bounding_boxes.iter().map(|bounding_box| -> RecognitionResult {
+            let tensor = self.preprocess(image, bounding_box);
             let model_output = self.infer(session, &tensor);
             self.decoode(&model_output)
         }).collect()
