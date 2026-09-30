@@ -2,7 +2,7 @@ use image::DynamicImage;
 use ndarray::Array4;
 use ort::session::{Session, SessionOutputs};
 
-use crate::core::types::BoundingBox;
+use crate::core::types::DetectionResult;
 
 pub trait Detector {
     /// Processes an image for model inference.
@@ -25,7 +25,7 @@ pub trait Detector {
     /// # Returns
     ///
     /// A list of bounding boxes around each text segment.
-    fn postprocess(&self, model_output: &SessionOutputs, image: &DynamicImage) -> Vec<BoundingBox>;
+    fn postprocess(&self, model_output: &SessionOutputs, image: &DynamicImage) -> Vec<DetectionResult>;
 
     /// Runs the data through the underlying model
     ///
@@ -48,7 +48,7 @@ pub trait Detector {
     /// # Returns
     /// A list of bounding boxes for each text element.
     ///
-    fn detect(&self, session: &mut Session, image: &DynamicImage) -> Vec<BoundingBox> {
+    fn detect(&self, session: &mut Session, image: &DynamicImage) -> Vec<DetectionResult> {
         let tensor = self.preprocess(image);
         let model_output = self.infer(session, &tensor);
         self.postprocess(&model_output, image)

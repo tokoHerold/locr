@@ -33,11 +33,12 @@ fn main() {
         .expect("Could not load image")
         .decode()
         .expect("Invalid image format");
-    let bounding_boxes = detector.detect(&mut session, &image);
-    for bb in &bounding_boxes {
+    let detection_results = detector.detect(&mut session, &image);
+    for result in &detection_results {
+        let bb = &result.bounding_box;
         println!(
-            "Detected text at pixel ({:}, {:}), width: {:}, height: {:}",
-            bb.x, bb.y, bb.width, bb.height
+            "Detected text at pixel ({:}, {:}), width: {:}, height: {:} - confidence {}%",
+            bb.x, bb.y, bb.width, bb.height, result.score
         )
     }
 
@@ -49,6 +50,7 @@ fn main() {
     characters.push("<blank>".to_string());
     characters.extend(dict.post_process.character_dict);
     characters.push(" ".to_string());
+    let bounding_boxes = detection_results.iter().map(|r| { r.bounding_box.clone() }).collect();
 
     session = Session::builder()
         .unwrap()

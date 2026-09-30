@@ -8,7 +8,7 @@ pub struct BoundingBox {
     /// Width of the box in pixels
     pub width: u32,
     /// Height of the box in pixels
-    pub height: u32
+    pub height: u32,
 }
 
 /// Pipeline result from a text detection stage
@@ -45,4 +45,28 @@ pub struct OcrResult {
     pub items: Vec<TextItem>,
     /// End-to-end execution duration in milliseconds.
     pub processing_time_ms: u64,
+}
+
+impl BoundingBox {
+    /// Creates a new bounding box.
+    #[inline]
+    pub const fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
+
+impl DetectionResult {
+    /// Constructs a new detection result
+    #[inline]
+    pub const fn new(bounding_box: BoundingBox, score: f32) -> Self {
+        Self {
+            bounding_box,
+            score,
+        }
+    }
 }

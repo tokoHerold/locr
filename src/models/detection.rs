@@ -9,7 +9,10 @@ use ort::{
     value::TensorRef,
 };
 
-use crate::{core::types::BoundingBox, detector::Detector};
+use crate::{
+    core::types::{BoundingBox, DetectionResult},
+    detector::Detector,
+};
 
 pub struct PaddleDetector {
     /// Minimum certainty of pixels to be recognized as text; range in [0.0, 1.0]
@@ -97,7 +100,11 @@ impl Detector for PaddleDetector {
         tensor
     }
 
-    fn postprocess(&self, model_output: &SessionOutputs, image: &DynamicImage) -> Vec<BoundingBox> {
+    fn postprocess(
+        &self,
+        model_output: &SessionOutputs,
+        image: &DynamicImage,
+    ) -> Vec<DetectionResult> {
         // Extract shape & data from model output
         let (shape, output_value) = model_output[0]
             .try_extract_tensor::<f32>()
@@ -166,7 +173,7 @@ impl Detector for PaddleDetector {
         text_areas
             .iter()
             .flatten()
-            .filter_map(|text_area| -> Option<BoundingBox> {
+            .filter_map(|text_area| -> Option<DetectionResult> {
                 // Filter out results with undesirable confidence
                 let width = text_area.x_max - text_area.x_min + 1;
                 let height = text_area.y_max - text_area.y_min + 1;
@@ -180,6 +187,7 @@ impl Detector for PaddleDetector {
                 let perimter = (2 * (width + height)) as f32;
                 let growth_distance = area * self.unclip_ratio / perimter;
 
+                // Rescale tensor boxes to original image
                 let x1 = (((text_area.x_min as f32 - growth_distance) * scale_x).round() as u32)
                     .clamp(0, original_width);
                 let x2 = (((text_area.x_max as f32 + growth_distance) * scale_x).round() as u32)
@@ -188,8 +196,10 @@ impl Detector for PaddleDetector {
                     .clamp(0, original_height);
                 let y2 = (((text_area.y_max as f32 + growth_distance) * scale_y).round() as u32)
                     .clamp(0, original_height);
-                // Rescale tensor boxes to original image
-                Some(BoundingBox { x: x1, y: y1, width: x2 - x1, height: y2 - y1, })
+                Some(DetectionResult::new(
+                    BoundingBox::new(x1, y1, x2 - x1, y2 - y1),
+                    average_score,
+                ))
             })
             .collect()
     }
