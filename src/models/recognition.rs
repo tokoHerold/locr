@@ -69,7 +69,7 @@ impl Recognizer for PaddleRecognizer {
     }
 
     // TODO change dict to char array
-    fn decoode(&self, model_output: &SessionOutputs, dict: &Vec<String>) -> RecognitionResult {
+    fn decoode(&self, model_output: &SessionOutputs, dict: &[char]) -> RecognitionResult {
         // Parse Model output [1, T, C] (Batch, Time Step, Class) into [T, C]
         let (shape, output_value) = model_output[0]
             .try_extract_tensor::<f32>()
@@ -98,7 +98,7 @@ impl Recognizer for PaddleRecognizer {
         let mut text = String::with_capacity(time_steps); // Number of time steps is upper limit
         let mut score: f32 = 0.0;
         if first_idx != CTC_BLANK && first_idx < dict.len() {
-            text.push_str(&dict[first_idx]);
+            text.push(dict[first_idx]);
         }
 
         // Two following indices with the same value decode to only one char
@@ -117,7 +117,7 @@ impl Recognizer for PaddleRecognizer {
                 // New segment: Commit new character and previous segment probability
                 if character_idx != CTC_BLANK && character_idx < dict.len() {
                     score += current_segment_probability;
-                    text.push_str(&dict[character_idx]);
+                    text.push(dict[character_idx]);
                 }
                 current_segment_probability = probability;
             }

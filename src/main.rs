@@ -6,22 +6,12 @@ mod recongizer;
 
 use image::ImageReader;
 use ort::session::Session;
-use serde::Deserialize;
 
 use crate::{
     detector::Detector, models::{detection::PaddleDetector, recognition::PaddleRecognizer}, recongizer::Recognizer,
 };
 
-#[derive(Deserialize, Debug)]
-struct Config {
-    #[serde(rename = "PostProcess")]
-    post_process: PostProcessConfig,
-}
-
-#[derive(Deserialize, Debug)]
-struct PostProcessConfig {
-    character_dict: Vec<String>,
-}
+include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
 
 fn main() {
     let detector = PaddleDetector::new();
@@ -37,19 +27,11 @@ fn main() {
     for result in &detection_results {
         let bb = &result.bounding_box;
         println!(
-            "Detected text at pixel ({:}, {:}), width: {:}, height: {:} - confidence {}%",
+            "Detected text at pixel ({:}, {:}), width: {:}, height: {:} - confidence {}",
             bb.x, bb.y, bb.width, bb.height, result.score
         )
     }
 
-    const YAML_CONTENT: &'static str = include_str!("../data/models/inference.yml");
-    let dict = serde_saphyr::from_str::<Config>(YAML_CONTENT).expect("Failed to parse YAML");
-    let mut characters: Vec<String> =
-        Vec::with_capacity(dict.post_process.character_dict.len() + 2);
-
-    characters.push("<blank>".to_string());
-    characters.extend(dict.post_process.character_dict);
-    characters.push(" ".to_string());
     let bounding_boxes = detection_results.iter().map(|r| { r.bounding_box.clone() }).collect();
 
     session = Session::builder()
@@ -61,7 +43,7 @@ fn main() {
         &mut session,
         &image.as_rgb8().expect("Wrong image format"),
         bounding_boxes,
-        &characters,
+        &CHARACTER_DICT,
     );
 
     for result in results {

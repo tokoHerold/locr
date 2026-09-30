@@ -27,7 +27,7 @@ pub trait Recognizer {
     /// # Returns
     ///
     /// A list of bounding boxes around each text segment.
-    fn decoode(&self, model_output: &SessionOutputs, dict: &Vec<String>) -> RecognitionResult;
+    fn decoode(&self, model_output: &SessionOutputs, dict: &[char]) -> RecognitionResult;
 
     /// Runs the data through the underlying model
     ///
@@ -51,7 +51,7 @@ pub trait Recognizer {
     /// # Returns
     ///
     /// Extracted text for all bounding boxes, with their confidence score.
-    fn recognize(&self, session: &mut Session, image: &RgbImage, bounding_boxes: Vec<BoundingBox>, dict: &Vec<String>) -> Vec<RecognitionResult> {
+    fn recognize(&self, session: &mut Session, image: &RgbImage, bounding_boxes: Vec<BoundingBox>, dict: &[char]) -> Vec<RecognitionResult> {
         bounding_boxes.iter().map(|bounding_box| -> RecognitionResult {
             let tensor = self.preprocess(image, bounding_box);
             let model_output = self.infer(session, &tensor);
