@@ -3,12 +3,13 @@ mod detector;
 mod models;
 mod recongizer;
 
-
 use image::ImageReader;
 use ort::session::Session;
 
 use crate::{
-    detector::Detector, models::{detection::PaddleDetector, recognition::PaddleRecognizer}, recongizer::Recognizer,
+    detector::Detector,
+    models::{detection::PaddleDetector, recognition::PaddleRecognizer},
+    recongizer::Recognizer,
 };
 
 include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
@@ -32,7 +33,10 @@ fn main() {
         )
     }
 
-    let bounding_boxes = detection_results.iter().map(|r| { r.bounding_box.clone() }).collect();
+    let bounding_boxes = detection_results
+        .iter()
+        .map(|r| r.bounding_box.clone())
+        .collect();
 
     session = Session::builder()
         .unwrap()

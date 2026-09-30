@@ -7,7 +7,10 @@ use image::{
 use ndarray::{Array4, ArrayView1, ArrayView2};
 use ort::{inputs, session::SessionOutputs, value::TensorRef};
 
-use crate::{core::types::{BoundingBox, RecognitionResult}, recongizer::Recognizer};
+use crate::{
+    core::types::{BoundingBox, RecognitionResult},
+    recongizer::Recognizer,
+};
 
 const TARGET_HEIGHT: u32 = 48;
 

@@ -1,9 +1,8 @@
-use image::RgbImage ;
+use image::RgbImage;
 use ndarray::Array4;
 use ort::session::{Session, SessionOutputs};
 
 use crate::core::types::{BoundingBox, RecognitionResult};
-
 
 pub trait Recognizer {
     /// Processes an image for model inference.
@@ -51,13 +50,20 @@ pub trait Recognizer {
     /// # Returns
     ///
     /// Extracted text for all bounding boxes, with their confidence score.
-    fn recognize(&self, session: &mut Session, image: &RgbImage, bounding_boxes: Vec<BoundingBox>, dict: &[char]) -> Vec<RecognitionResult> {
-        bounding_boxes.iter().map(|bounding_box| -> RecognitionResult {
-            let tensor = self.preprocess(image, bounding_box);
-            let model_output = self.infer(session, &tensor);
-            self.decoode(&model_output, dict)
-        }).collect()
+    fn recognize(
+        &self,
+        session: &mut Session,
+        image: &RgbImage,
+        bounding_boxes: Vec<BoundingBox>,
+        dict: &[char],
+    ) -> Vec<RecognitionResult> {
+        bounding_boxes
+            .iter()
+            .map(|bounding_box| -> RecognitionResult {
+                let tensor = self.preprocess(image, bounding_box);
+                let model_output = self.infer(session, &tensor);
+                self.decoode(&model_output, dict)
+            })
+            .collect()
     }
 }
-
-

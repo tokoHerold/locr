@@ -25,7 +25,11 @@ pub trait Detector {
     /// # Returns
     ///
     /// A list of bounding boxes around each text segment.
-    fn postprocess(&self, model_output: &SessionOutputs, image: &DynamicImage) -> Vec<DetectionResult>;
+    fn postprocess(
+        &self,
+        model_output: &SessionOutputs,
+        image: &DynamicImage,
+    ) -> Vec<DetectionResult>;
 
     /// Runs the data through the underlying model
     ///
@@ -54,5 +58,3 @@ pub trait Detector {
         self.postprocess(&model_output, image)
     }
 }
-
-
