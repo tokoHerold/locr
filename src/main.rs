@@ -2,26 +2,24 @@ mod detector;
 mod models;
 mod recongizer;
 
+
 use image::ImageReader;
 use ort::session::Session;
 use serde::Deserialize;
 
 use crate::{
-    detector::Detector,
-    models::{detection::PaddleDetector, recognition::PaddleRecognizer},
-    recongizer::Recognizer,
+    detector::Detector, models::{detection::PaddleDetector, recognition::PaddleRecognizer}, recongizer::Recognizer,
 };
 
 #[derive(Deserialize, Debug)]
 struct Config {
-    #[serde(rename = "PostProcess")] // YAML hat oft Großschreibung, Rust mag snake_case
+    #[serde(rename = "PostProcess")]
     post_process: PostProcessConfig,
 }
 
 #[derive(Deserialize, Debug)]
 struct PostProcessConfig {
     character_dict: Vec<String>,
-    // "name: CTCLabelDecode" lassen wir weg – wird ignoriert!
 }
 
 fn main() {
@@ -63,6 +61,10 @@ fn main() {
         &characters,
     );
 
-    println!("{:?}", results);
+    for result in results {
+        println!("{:}", result.text);
+    }
+
+    // println!("{:?}", results);
     println!("Hello, world!");
 }
