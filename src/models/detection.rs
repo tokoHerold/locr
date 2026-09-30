@@ -9,7 +9,7 @@ use ort::{
     value::TensorRef,
 };
 
-use crate::detector::{BoundingBox, Detector};
+use crate::{core::types::BoundingBox, detector::Detector};
 
 pub struct PaddleDetector {
     /// Minimum certainty of pixels to be recognized as text; range in [0.0, 1.0]

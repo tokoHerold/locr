@@ -2,12 +2,7 @@ use image::DynamicImage;
 use ndarray::Array4;
 use ort::session::{Session, SessionOutputs};
 
-pub struct BoundingBox {
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32
-}
+use crate::core::types::BoundingBox;
 
 pub trait Detector {
     /// Processes an image for model inference.

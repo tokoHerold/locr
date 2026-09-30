@@ -2,7 +2,7 @@ use image::RgbImage ;
 use ndarray::Array4;
 use ort::session::{Session, SessionOutputs};
 
-use crate::detector::BoundingBox;
+use crate::core::types::BoundingBox;
 
 #[derive(Debug)]
 pub struct RecognitionResult {
