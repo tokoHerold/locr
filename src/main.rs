@@ -7,6 +7,7 @@ use image::ImageReader;
 use ort::session::Session;
 
 use crate::{
+    core::device::Device,
     detector::Detector,
     models::{detection::PaddleDetector, recognition::PaddleRecognizer},
     recongizer::Recognizer,
@@ -15,8 +16,11 @@ use crate::{
 include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
 
 fn main() {
+    const DEVICE: Device = Device::Cpu;
+    // const DEVICE: Device = Device::Cuda;
     let detector = PaddleDetector::new();
-    let mut session = Session::builder()
+    let mut session = DEVICE
+        .configure_session(Session::builder().unwrap())
         .unwrap()
         .commit_from_file("data/models/det.onnx")
         .expect("Failed to load detection model!");
@@ -38,7 +42,8 @@ fn main() {
         .map(|r| r.bounding_box.clone())
         .collect();
 
-    session = Session::builder()
+    session = DEVICE
+        .configure_session(Session::builder().unwrap())
         .unwrap()
         .commit_from_file("data/models/rec.onnx")
         .expect("Failed to load recognition model!");

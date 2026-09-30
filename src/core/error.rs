@@ -1,3 +1,4 @@
+use ort::session::builder::SessionBuilder;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -9,7 +10,7 @@ pub enum OcrError {
     Image(#[from] image::ImageError),
 
     #[error("Device execution provider error: {0}")]
-    DeviceUnavailable(String),
+    DeviceUnavailable(#[from] ort::Error<SessionBuilder>),
 
     #[error("Invalid input or dimensions: {0}")]
     InvalidInput(String),
