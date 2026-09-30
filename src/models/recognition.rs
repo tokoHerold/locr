@@ -1,11 +1,11 @@
-use std::cmp::max;
+use std::cmp::{Ordering, max};
 
 use image::{
-    DynamicImage, GenericImageView,
+    GenericImageView,
     imageops::{FilterType, resize},
 };
-use ndarray::Array4;
-use ort::session::SessionOutputs;
+use ndarray::{Array4, ArrayView1, ArrayView2};
+use ort::{inputs, session::SessionOutputs, value::TensorRef};
 
 use crate::{
     detector::BoundingBox,
@@ -14,7 +14,7 @@ use crate::{
 
 const TARGET_HEIGHT: u32 = 48;
 
-struct PaddleRecognizer {}
+pub struct PaddleRecognizer {}
 
 use image::{Rgb, RgbImage};
 
@@ -50,7 +50,8 @@ impl Recognizer for PaddleRecognizer {
             16,
             (width as f32 * (TARGET_HEIGHT as f32 / height as f32)).round() as u32,
         );
-        let resized_crop = resize(&crop, TARGET_HEIGHT, target_width, FilterType::Nearest);
+        let resized_crop = resize(&crop, target_width, TARGET_HEIGHT, FilterType::Nearest);
+        // debug_assert!(resized_crop.dimensions() == (target_width, TARGET_HEIGHT), "resized crop {:?} != target ({}, {})", resized_crop.dimensions(), target_width, TARGET_HEIGHT);
 
         // Convert resized crop into tensor
         let mut tensor = Array4::<f32>::zeros((
@@ -70,8 +71,72 @@ impl Recognizer for PaddleRecognizer {
         tensor
     }
 
-    fn decoode(&self, model_output: &SessionOutputs) -> RecognitionResult {
-        todo!()
+    // TODO change dict to char array
+    fn decoode(&self, model_output: &SessionOutputs, dict: &Vec<String>) -> RecognitionResult {
+        // Parse Model output [1, T, C] (Batch, Time Step, Class) into [T, C]
+        let (shape, output_value) = model_output[0]
+            .try_extract_tensor::<f32>()
+            .expect("Failed to extract model output");
+        assert!(
+            shape.len() == 3,
+            "Recognition model delivered unexpected output."
+        );
+        assert_eq!(shape[0], 1, "Batch Dimension was not 1!");
+        let ctc_logits =
+            ArrayView2::from_shape((shape[1] as usize, shape[2] as usize), &output_value).unwrap();
+        let time_steps = shape[1] as usize;
+        if time_steps == 0 {
+            return RecognitionResult {
+                text: String::new(),
+                score: 0.0,
+            };
+        }
+
+        println!("Probs for BB ");
+        // For each time step, extract character index with highest probability
+        const CTC_BLANK: usize = 0;
+        let (first_idx, probability) =
+            argmax(&ctc_logits.row(0)).expect("Class dimension cannot be empty");
+        print!("{:}", first_idx);
+        let mut text = String::with_capacity(time_steps); // Number of time steps is upper limit
+        let mut score: f32 = 0.0;
+        if first_idx != CTC_BLANK && first_idx < dict.len() {
+            text.push_str(&dict[first_idx]);
+        }
+
+        // Two following indices with the same value decode to only one char
+        let mut last_idx: usize = first_idx; // Remember last index
+        let mut current_segment_probability: f32 = probability; // Remember highest probability of segment
+
+        for timestep_logits in ctc_logits.rows().into_iter().skip(1) {
+            let (character_idx, probability) =
+                argmax(&timestep_logits).expect("Class dimension cannot be empty");
+            print!("{:}", character_idx);
+            // Decode current character:
+            if character_idx == last_idx {
+                // Same character index without CTC blank: ignore & update probability
+                current_segment_probability = current_segment_probability.max(probability);
+            } else {
+                // New segment: Commit new character and previous segment probability
+                if character_idx != CTC_BLANK && character_idx < dict.len() {
+                    score += current_segment_probability;
+                    text.push_str(&dict[character_idx]);
+                }
+                current_segment_probability = probability;
+            }
+            last_idx = character_idx;
+        }
+        if time_steps > 1 {
+            score += current_segment_probability; // Commit probability of last segment
+        }
+
+        // Calculate final score
+        score = if text.len() > 0 {
+            score / text.chars().count() as f32
+        } else {
+            0.0
+        };
+        RecognitionResult { text, score }
     }
 
     fn infer<'a>(
@@ -79,6 +144,20 @@ impl Recognizer for PaddleRecognizer {
         session: &'a mut ort::session::Session,
         input: &Array4<f32>,
     ) -> SessionOutputs<'a> {
-        todo!()
+        let tensor = TensorRef::from_array_view(input.view()).unwrap();
+        session
+            .run(inputs!["x" => tensor])
+            .expect("An error occured during detection inference.")
     }
+}
+
+/// Returns the maximum value and argmax of an ndarray slice
+fn argmax<T: PartialOrd + Copy>(array: &ArrayView1<T>) -> Option<(usize, T)> {
+    array
+        .iter()
+        .enumerate()
+        .max_by(|(_idx_a, val_a), (_idx_b, val_b)| {
+            val_a.partial_cmp(val_b).unwrap_or(Ordering::Equal)
+        })
+        .map(|(idx, value)| (idx, *value))
 }
