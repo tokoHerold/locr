@@ -2,13 +2,8 @@ use image::RgbImage ;
 use ndarray::Array4;
 use ort::session::{Session, SessionOutputs};
 
-use crate::core::types::BoundingBox;
+use crate::core::types::{BoundingBox, RecognitionResult};
 
-#[derive(Debug)]
-pub struct RecognitionResult {
-    pub text: String,
-    pub score: f32,
-}
 
 pub trait Recognizer {
     /// Processes an image for model inference.
