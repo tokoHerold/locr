@@ -7,10 +7,7 @@ use image::{
 use ndarray::{Array4, ArrayView1, ArrayView2};
 use ort::{inputs, session::SessionOutputs, value::TensorRef};
 
-use crate::{
-    core::types::{BoundingBox, RecognitionResult},
-    recongizer::Recognizer,
-};
+use crate::core::{traits::TextRecognizer, types::{BoundingBox, RecognitionResult}};
 
 const TARGET_HEIGHT: u32 = 48;
 
@@ -38,7 +35,7 @@ impl<'a> GenericImageView for CropView<'a> {
     }
 }
 
-impl Recognizer for PaddleRecognizer {
+impl TextRecognizer for PaddleRecognizer {
     fn preprocess(&self, image: &RgbImage, bounding_box: &BoundingBox) -> Array4<f32> {
         let crop = CropView {
             img: image,

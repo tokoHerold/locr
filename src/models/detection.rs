@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use image::{DynamicImage, GrayImage, Luma};
+use image::{GrayImage, Luma, RgbImage, imageops::resize};
 use imageproc::region_labelling::{Connectivity, connected_components};
 use ndarray::Array4;
 use ort::{
@@ -9,10 +9,7 @@ use ort::{
     value::TensorRef,
 };
 
-use crate::{
-    core::types::{BoundingBox, DetectionResult},
-    detector::Detector,
-};
+use crate::core::{traits::TextDetector, types::{BoundingBox, DetectionResult}};
 
 pub struct PaddleDetector {
     /// Minimum certainty of pixels to be recognized as text; range in [0.0, 1.0]
@@ -54,8 +51,8 @@ impl PaddleDetector {
     }
 }
 
-impl Detector for PaddleDetector {
-    fn preprocess(&self, image: &DynamicImage) -> Array4<f32> {
+impl TextDetector for PaddleDetector {
+    fn preprocess(&self, image: &RgbImage) -> Array4<f32> {
         let image_width = image.width();
         let image_height = image.height();
 
@@ -66,18 +63,17 @@ impl Detector for PaddleDetector {
             } else {
                 1.0
             };
-        let resize = |x: u32| -> u32 {
+        let scale = |x: u32| -> u32 {
             ((downscale_ratio * f64::from(x) / 32.0).ceil() * 32.0).max(32.0) as u32
         };
-        let resized_width = resize(image_width);
-        let resized_height = resize(image_height);
-        let resized_image = image
-            .resize_exact(
+        let resized_width = scale(image_width);
+        let resized_height = scale(image_height);
+        let resized_image = resize(
+                image,
                 resized_width,
                 resized_height,
                 image::imageops::FilterType::Nearest,
-            )
-            .to_rgb8();
+            );
 
         // Store normalized image in tensor
         let mut tensor = Array4::<f32>::zeros((
@@ -103,7 +99,7 @@ impl Detector for PaddleDetector {
     fn postprocess(
         &self,
         model_output: &SessionOutputs,
-        image: &DynamicImage,
+        image: &RgbImage,
     ) -> Vec<DetectionResult> {
         // Extract shape & data from model output
         let (shape, output_value) = model_output[0]
