@@ -25,6 +25,7 @@ impl Device {
             #[cfg(feature = "cuda")]
             Device::Cuda =>
                 Ok(builder.with_execution_providers([ort::ep::CUDA::default()
+                    .with_device_id(0) // TODO: maybe wanna specify that in the future
                     .build()])?) ,
 
             

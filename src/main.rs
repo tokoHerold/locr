@@ -3,8 +3,10 @@ mod detector;
 mod models;
 mod recongizer;
 
+use std::path::PathBuf;
+
 use image::ImageReader;
-use ort::session::Session;
+use ort::{compiler::ModelCompiler, session::Session};
 
 use crate::{
     core::device::Device,
@@ -16,8 +18,8 @@ use crate::{
 include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
 
 fn main() {
-    const DEVICE: Device = Device::Cpu;
-    // const DEVICE: Device = Device::Cuda;
+    // const DEVICE: Device = Device::Cpu;
+    const DEVICE: Device = Device::Cuda;
     let detector = PaddleDetector::new();
     let mut session = DEVICE
         .configure_session(Session::builder().unwrap())
@@ -42,11 +44,17 @@ fn main() {
         .map(|r| r.bounding_box.clone())
         .collect();
 
-    session = DEVICE
-        .configure_session(Session::builder().unwrap())
-        .unwrap()
-        .commit_from_file("data/models/rec.onnx")
-        .expect("Failed to load recognition model!");
+    let mut session_options = DEVICE
+        .configure_session(Session::builder().unwrap()).unwrap();
+        // .commit_from_file("data/models/rec.onnx")
+        // .expect("Failed to load recognition model!");
+    let compiled_path = PathBuf::from("data/models/compiled.onnx");
+    if !compiled_path.exists() {
+
+    ModelCompiler::new(session_options.clone()).unwrap().with_model_from_file("data/models/rec.onnx")
+        .unwrap().compile_to_file(&compiled_path).expect("Failed to compile rec model");
+    }
+    session = session_options.commit_from_file(&compiled_path).expect("Failed to load compiled model");
     let recongizer = PaddleRecognizer {};
     let results = recongizer.recognize(
         &mut session,
