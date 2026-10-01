@@ -1,4 +1,4 @@
-use ort::{session::builder::SessionBuilder};
+use ort::session::builder::SessionBuilder;
 
 use crate::core::error::OcrError;
 
@@ -16,19 +16,24 @@ pub enum Device {
 }
 
 impl Device {
-    pub fn configure_session(
-        &self,
-        builder: SessionBuilder,
-    ) -> Result<SessionBuilder, OcrError> {
+    /// Returns a short unique identifier for cache file naming.
+    pub fn get_identifier(&self) -> &str {
+        match self {
+            Device::Cpu => "cpu",
+            Device::Cuda => "cuda",
+            Device::DirectMl => "directml",
+            Device::CoreMl => "coreml",
+        }
+    }
+
+    pub fn configure_session(&self, builder: SessionBuilder) -> Result<SessionBuilder, OcrError> {
         match self {
             Device::Cpu => Ok(builder),
             #[cfg(feature = "cuda")]
-            Device::Cuda =>
-                Ok(builder.with_execution_providers([ort::ep::CUDA::default()
-                    .with_device_id(0) // TODO: maybe wanna specify that in the future
-                    .build()])?) ,
+            Device::Cuda => Ok(builder.with_execution_providers([ort::ep::CUDA::default()
+                .with_device_id(0) // TODO: maybe wanna specify that in the future
+                .build()])?),
 
-            
             #[cfg(not(feature = "cuda"))]
             Device::Cuda { .. } => Err(OcrError::DeviceUnavailable(
                 "CUDA feature is not enabled".into(),
