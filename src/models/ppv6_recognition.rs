@@ -51,17 +51,14 @@ impl TextRecognizer for PaddleRecognizer {
         &mut self,
         image: &RgbImage,
         bounding_boxes: Vec<BoundingBox>,
-    ) -> Vec<RecognitionResult> {
+    ) -> Result<Vec<RecognitionResult>, OcrError> {
         bounding_boxes
             .iter()
-            .map(|bounding_box| -> RecognitionResult {
+            .map(|bounding_box| -> Result<RecognitionResult, OcrError> {
                 let tensor = preprocess(image, bounding_box);
                 let tensor_ref = TensorRef::from_array_view(tensor.view()).unwrap();
-                let model_output = &self
-                    .session
-                    .run(inputs!["x" => tensor_ref])
-                    .expect("An error occured during recognition inference.");
-                decoode(&model_output)
+                let model_output = &self.session.run(inputs!["x" => tensor_ref])?;
+                Ok(decoode(&model_output)?)
             })
             .collect()
     }
@@ -138,11 +135,9 @@ fn preprocess(image: &RgbImage, bounding_box: &BoundingBox) -> Array4<f32> {
 /// # Returns
 ///
 /// A list of bounding boxes around each text segment.
-fn decoode(model_output: &SessionOutputs) -> RecognitionResult {
+fn decoode(model_output: &SessionOutputs) -> Result<RecognitionResult, OcrError> {
     // Parse Model output [1, T, C] (Batch, Time Step, Class) into [T, C]
-    let (shape, output_value) = model_output[0]
-        .try_extract_tensor::<f32>()
-        .expect("Failed to extract model output");
+    let (shape, output_value) = model_output[0].try_extract_tensor::<f32>()?;
     assert!(
         shape.len() == 3,
         "Recognition model delivered unexpected output."
@@ -152,10 +147,10 @@ fn decoode(model_output: &SessionOutputs) -> RecognitionResult {
         ArrayView2::from_shape((shape[1] as usize, shape[2] as usize), &output_value).unwrap();
     let time_steps = shape[1] as usize;
     if time_steps == 0 {
-        return RecognitionResult {
+        return Ok(RecognitionResult {
             text: String::new(),
             score: 0.0,
-        };
+        });
     }
 
     // Static compile-time check to assert CHARACTER_DICT is a char array
@@ -163,8 +158,9 @@ fn decoode(model_output: &SessionOutputs) -> RecognitionResult {
 
     // For each time step, extract character index with highest probability
     const CTC_BLANK: usize = 0;
-    let (first_idx, probability) =
-        argmax(&ctc_logits.row(0)).expect("Class dimension cannot be empty");
+    let (first_idx, probability) = argmax(&ctc_logits.row(0)).ok_or(OcrError::InvalidInput(
+        "Recognition model returned unexpected output".to_string(),
+    ))?;
     let mut text = String::with_capacity(time_steps); // Number of time steps is upper limit
     let mut score: f32 = 0.0;
     if first_idx != CTC_BLANK && first_idx < dict.len() {
@@ -176,8 +172,9 @@ fn decoode(model_output: &SessionOutputs) -> RecognitionResult {
     let mut current_segment_probability: f32 = probability; // Remember highest probability of segment
 
     for timestep_logits in ctc_logits.rows().into_iter().skip(1) {
-        let (character_idx, probability) =
-            argmax(&timestep_logits).expect("Class dimension cannot be empty");
+        let (character_idx, probability) = argmax(&timestep_logits).ok_or(
+            OcrError::InvalidInput("Recognition model returned unexpected output".to_string()),
+        )?;
         // Decode current character:
         if character_idx == last_idx {
             // Same character index without CTC blank: ignore & update probability
@@ -202,7 +199,7 @@ fn decoode(model_output: &SessionOutputs) -> RecognitionResult {
     } else {
         0.0
     };
-    RecognitionResult { text, score }
+    Ok(RecognitionResult { text, score })
 }
 
 /// Returns the maximum value and argmax of an ndarray slice

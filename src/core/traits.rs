@@ -17,7 +17,7 @@ pub trait TextDetector {
     /// # Returns
     /// A list of bounding boxes for each text element.
     ///
-    fn detect(&mut self, image: &RgbImage) -> Vec<DetectionResult>;
+    fn detect(&mut self, image: &RgbImage) -> Result<Vec<DetectionResult>, OcrError>;
 }
 
 /// Text recognition contract responsible for transcribing cropped text regions.
@@ -37,7 +37,7 @@ pub trait TextRecognizer {
         &mut self,
         image: &RgbImage,
         bounding_boxes: Vec<BoundingBox>,
-    ) -> Vec<RecognitionResult>;
+    ) -> Result<Vec<RecognitionResult>, OcrError>;
 }
 
 /// High-level OCR engine contract for end-to-end text processing.

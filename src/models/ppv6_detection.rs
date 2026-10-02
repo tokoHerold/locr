@@ -76,14 +76,11 @@ impl PaddleDetector {
 }
 
 impl TextDetector for PaddleDetector {
-    fn detect(&mut self, image: &RgbImage) -> Vec<DetectionResult> {
+    fn detect(&mut self, image: &RgbImage) -> Result<Vec<DetectionResult>, OcrError> {
         let tensor = preprocess(&self.config, image);
         let tensor_view = TensorRef::from_array_view(tensor.view()).unwrap();
-        let model_output = &self
-            .session
-            .run(inputs!["x" => tensor_view])
-            .expect("An error occured during detection inference.");
-        postprocess(&self.config, &model_output, image)
+        let model_output = &self.session.run(inputs!["x" => tensor_view])?;
+        Ok(postprocess(&self.config, &model_output, image)?)
     }
 }
 
@@ -154,11 +151,9 @@ fn postprocess(
     config: &PaddleConfig,
     model_output: &SessionOutputs,
     image: &RgbImage,
-) -> Vec<DetectionResult> {
+) -> Result<Vec<DetectionResult>, OcrError> {
     // Extract shape & data from model output
-    let (shape, output_value) = model_output[0]
-        .try_extract_tensor::<f32>()
-        .expect("Failed to extract model output");
+    let (shape, output_value) = model_output[0].try_extract_tensor::<f32>()?;
     let height = shape[2] as usize;
     let width = shape[3] as usize;
 
@@ -173,8 +168,7 @@ fn postprocess(
             }
         })
         .collect();
-    let binary_mask = GrayImage::from_raw(width as u32, height as u32, binary_pixels)
-        .expect("Failed to allocate grayscale image");
+    let binary_mask = GrayImage::from_raw(width as u32, height as u32, binary_pixels).unwrap();
 
     // Extract connected components from heatmap
     let mut text_areas: Vec<Option<TextArea>> = vec![None; 128];
@@ -220,7 +214,7 @@ fn postprocess(
     let scale_y = original_height as f32 / height as f32;
 
     // Convert extracted text areas into bounding boxes
-    text_areas
+    Ok(text_areas
         .iter()
         .flatten()
         .filter_map(|text_area| -> Option<DetectionResult> {
@@ -251,5 +245,5 @@ fn postprocess(
                 average_score,
             ))
         })
-        .collect()
+        .collect())
 }
