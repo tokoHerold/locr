@@ -29,20 +29,11 @@ pub struct RecognitionResult {
     pub score: f32,
 }
 
-/// A recognized text fragment associated with its spatial bounding box and confidences.
-#[derive(Debug, Clone)]
-pub struct TextItem {
-    /// Stores bounding box and detection confidence
-    pub detection_result: DetectionResult,
-    /// Stores decoded text and recognition confidence
-    pub recognition_result: RecognitionResult,
-}
-
 /// Output returned by an [`OcrEngine`](crate::core::traits::OcrEngine).
 #[derive(Debug, Clone)]
 pub struct OcrResult {
     /// Ordered collection of detected and recognized text items.
-    pub items: Vec<TextItem>,
+    pub items: Vec<(DetectionResult, RecognitionResult)>,
     /// End-to-end execution duration in milliseconds.
     pub processing_time_ms: u64,
 }

@@ -36,7 +36,7 @@ pub trait TextRecognizer {
     fn recognize(
         &mut self,
         image: &RgbImage,
-        bounding_boxes: Vec<BoundingBox>,
+        bounding_boxes: Vec<&BoundingBox>,
     ) -> Result<Vec<RecognitionResult>, OcrError>;
 }
 
