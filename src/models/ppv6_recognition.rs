@@ -5,11 +5,19 @@ use image::{
     imageops::{FilterType, resize},
 };
 use ndarray::{Array4, ArrayView1, ArrayView2};
-use ort::{inputs, session::{Session, SessionOutputs}, value::TensorRef};
+use ort::{
+    inputs,
+    session::{Session, SessionOutputs},
+    value::TensorRef,
+};
 
-use crate::{core::{
-    device::Device, error::OcrError, model_cache::ModelCache, traits::TextRecognizer, types::{BoundingBox, RecognitionResult},
-}};
+use crate::core::{
+    device::Device,
+    error::OcrError,
+    model_cache::ModelCache,
+    traits::TextRecognizer,
+    types::{BoundingBox, RecognitionResult},
+};
 // Injects `pub static CHARACTER_DICT: [&str; <dict_size> + 2]` generated at build time.
 include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
 
@@ -19,7 +27,6 @@ const TARGET_HEIGHT: u32 = 48;
 /// Embedded PaddlePaddle v6 ONNX model bytes for text recognition.
 pub static DETECTION_MODEL_BYTES: &[u8] =
     include_bytes!("../../data/models/PP_OCRv6_tiny_rec.onnx");
-
 
 pub struct PaddleRecognizer {
     session: Session,
@@ -50,14 +57,14 @@ impl TextRecognizer for PaddleRecognizer {
             .map(|bounding_box| -> RecognitionResult {
                 let tensor = preprocess(image, bounding_box);
                 let tensor_ref = TensorRef::from_array_view(tensor.view()).unwrap();
-                let model_output = &self.session
+                let model_output = &self
+                    .session
                     .run(inputs!["x" => tensor_ref])
                     .expect("An error occured during recognition inference.");
                 decoode(&model_output)
             })
             .collect()
     }
-    
 }
 
 // -= Helper functions =-

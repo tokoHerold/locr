@@ -4,7 +4,11 @@ mod models;
 use image::ImageReader;
 
 use crate::{
-    core::{device::Device, traits::{TextDetector, TextRecognizer}}, models::{ppv6_detection::PaddleDetector, ppv6_recognition::PaddleRecognizer},
+    core::{
+        device::Device,
+        traits::{TextDetector, TextRecognizer},
+    },
+    models::{ppv6_detection::PaddleDetector, ppv6_recognition::PaddleRecognizer},
 };
 
 fn main() {
@@ -31,10 +35,7 @@ fn main() {
         .collect();
 
     let mut recongizer = PaddleRecognizer::new(DEVICE).expect("Failed to create recognizer");
-    let results = recongizer.recognize(
-        &image,
-        bounding_boxes,
-    );
+    let results = recongizer.recognize(&image, bounding_boxes);
 
     for result in results {
         println!("{:}", result.text);
