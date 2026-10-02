@@ -1,5 +1,6 @@
 mod core;
 mod models;
+mod pipeline;
 
 use image::ImageReader;
 
