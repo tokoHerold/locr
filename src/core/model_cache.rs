@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use ort::{compiler::ModelCompiler, session::{Session, builder}};
+use ort::{compiler::ModelCompiler, session::Session};
 
 use crate::core::{device::Device, error::OcrError};
 
@@ -19,7 +19,15 @@ impl ModelCache {
             .or_else(|_| std::env::var("HOME").map(|p| PathBuf::from(p).join(".cache/locr")));
 
         Self {
-            cache_dir: dir.map_or(None, |d| Some(d)),
+            cache_dir: dir.map_or(None, |directory| {
+                if !directory.exists() {
+                    // Create cache dir
+                    if fs::create_dir_all(&directory).is_err() {
+                        return None;
+                    }
+                }
+                Some(directory)
+            }),
         }
     }
 
@@ -47,7 +55,8 @@ impl ModelCache {
 
         // Cache hit: do nohting
         if let Some(cache_dir) = &self.cache_dir {
-            let cache_file = cache_dir.join(format!("{}_{}.onnx", model_name, device.get_identifier()));
+            let cache_file =
+                cache_dir.join(format!("{}_{}.onnx", model_name, device.get_identifier()));
             if cache_file.exists() && fs::metadata(&cache_file).unwrap().len() > 0 {
                 return Ok(builder.commit_from_file(&cache_file)?);
             }
@@ -56,13 +65,14 @@ impl ModelCache {
         // Cache miss: compile model
         let compiler = ModelCompiler::new(builder.clone())?.with_model_from_memory(model_bytes)?;
         match &self.cache_dir {
-            Some( cache_dir ) => {
-                let cache_file = cache_dir.join(format!("{}_{}.onnx", model_name, device.get_identifier()));
+            Some(cache_dir) => {
+                let cache_file =
+                    cache_dir.join(format!("{}_{}.onnx", model_name, device.get_identifier()));
                 compiler.compile_to_file(&cache_file)?;
                 Ok(builder.commit_from_file(&cache_file)?)
             }
             // If cache directory was not found, degrade gracefully to no caching
-            None => Ok(builder.commit_from_memory(&compiler.compile_to_buffer()?)?)
+            None => Ok(builder.commit_from_memory(&compiler.compile_to_buffer()?)?),
         }
     }
 }

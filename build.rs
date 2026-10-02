@@ -22,7 +22,7 @@ pub fn main() {
     let out_path = Path::new(&out_dir);
 
     // Parse dictionary from inference.yml
-    let yaml_path = "data/models/inference.yml";
+    let yaml_path = "data/models/PP_OCRv6_tiny_rec_inference.yml";
     println!("cargo:rerun-if-changed={yaml_path}");
     let yaml_file = File::open(yaml_path).expect(&format!("Failed to open {:}", yaml_path));
     let infrence_config: InferenceConfig =

@@ -1,3 +1,3 @@
 // Convolutional recurrent neural network implementation
-pub mod detection;
+pub mod ppv6_detection;
 pub mod recognition;

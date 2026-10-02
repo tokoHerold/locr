@@ -7,7 +7,7 @@ use image::ImageReader;
 use ort::{compiler::ModelCompiler, session::Session};
 
 use crate::{
-    core::{device::Device, traits::{TextDetector, TextRecognizer}}, models::{detection::PaddleDetector, recognition::PaddleRecognizer},
+    core::{device::Device, traits::{TextDetector, TextRecognizer}}, models::{ppv6_detection::PaddleDetector, recognition::PaddleRecognizer},
 };
 
 include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
@@ -15,18 +15,13 @@ include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
 fn main() {
     // const DEVICE: Device = Device::Cpu;
     const DEVICE: Device = Device::Cuda;
-    let detector = PaddleDetector::new();
-    let mut session = DEVICE
-        .configure_session(Session::builder().unwrap())
-        .unwrap()
-        .commit_from_file("data/models/PP_OCRv6_tiny_det.onnx")
-        .expect("Failed to load detection model!");
+    let mut detector = PaddleDetector::new(DEVICE).expect("Failed to create detector");
     let image = ImageReader::open("data/test.png")
         .expect("Could not load image")
         .decode()
         .expect("Invalid image format");
     let image = image.as_rgb8().expect("Expected RGB image");
-    let detection_results = detector.detect(&mut session, &image);
+    let detection_results = detector.detect(&image);
     for result in &detection_results {
         let bb = &result.bounding_box;
         println!(
@@ -50,7 +45,7 @@ fn main() {
     ModelCompiler::new(session_options.clone()).unwrap().with_model_from_file("data/models/PP_OCRv6_tiny_rec.onnx")
         .unwrap().compile_to_file(&compiled_path).expect("Failed to compile rec model");
     }
-    session = session_options.commit_from_file(&compiled_path).expect("Failed to load compiled model");
+    let mut session = session_options.commit_from_file(&compiled_path).expect("Failed to load compiled model");
     let recongizer = PaddleRecognizer {};
     let results = recongizer.recognize(
         &mut session,
