@@ -1,6 +1,9 @@
-use image::RgbImage;
+use image::{DynamicImage, RgbImage};
 
-use crate::core::types::{BoundingBox, DetectionResult, RecognitionResult};
+use crate::core::{
+    error::OcrError,
+    types::{BoundingBox, DetectionResult, OcrResult, RecognitionResult},
+};
 
 /// Text detection contract responsible for localizing text regions in an image.
 pub trait TextDetector {
@@ -35,4 +38,16 @@ pub trait TextRecognizer {
         image: &RgbImage,
         bounding_boxes: Vec<BoundingBox>,
     ) -> Vec<RecognitionResult>;
+}
+
+/// High-level OCR engine contract for end-to-end text processing.
+///
+/// Implemented by classical two-stage pipelines as well as end-to-end vision-language models.
+pub trait OcrEngine {
+    /// Processes an input image and returns detected text items and run statistics.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OcrError`] if detection, recognition, or image preprocessing fails.
+    fn process(&mut self, image: &DynamicImage) -> Result<OcrResult, OcrError>;
 }
