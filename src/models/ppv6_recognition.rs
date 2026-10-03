@@ -5,11 +5,7 @@ use image::{
     imageops::{FilterType, resize},
 };
 use ndarray::{Array3, Array4, ArrayView1, ArrayView2, ArrayView3, Axis, s};
-use ort::{
-    inputs,
-    session::Session,
-    value::TensorRef,
-};
+use ort::{inputs, session::Session, value::TensorRef};
 
 use crate::core::{
     device::Device,
@@ -83,7 +79,7 @@ impl TextRecognizer for PaddleRecognizer {
 
             // Batch results onto axis 1, padding dimension 3 with zeros
             let mut batch = Array4::<f32>::zeros((
-                batch_size,      // Batch Dimension
+                batch_size,             // Batch Dimension
                 3 as usize,             // RGB
                 TARGET_HEIGHT as usize, // Fixed image height
                 max_width,              // Dynamic width, padded to largest image width
