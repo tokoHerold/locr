@@ -11,7 +11,7 @@ use crate::{
 };
 
 type PaddleOcr = TwoStagePipeline<PaddleDetector, PaddleRecognizer>;
-fn default_engine(device: Device, max_batch_size: u32) -> Result<PaddleOcr, OcrError> {
+fn default_engine(device: Device, max_batch_size: usize) -> Result<PaddleOcr, OcrError> {
     let detector = PaddleDetector::new(device)?;
     let recognizer = PaddleRecognizer::new(device, max_batch_size)?;
     Ok(PaddleOcr::new(detector, recognizer))
@@ -25,7 +25,7 @@ fn main() {
         .decode()
         .expect("Invalid image format");
 
-    let mut engine = default_engine(DEVICE, 32).unwrap();
+    let mut engine = default_engine(DEVICE, 8).unwrap();
     let result = engine.process(&image).unwrap();
     println!(
         "Found {} text blocks in {} ms",

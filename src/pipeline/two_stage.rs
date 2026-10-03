@@ -5,7 +5,7 @@ use image::DynamicImage::ImageRgb8;
 use crate::core::{
     error::OcrError,
     traits::{OcrEngine, TextDetector, TextRecognizer},
-    types::{DetectionResult, OcrResult},
+    types::OcrResult,
 };
 
 /// End-to-end OCR pipeline orchestrating a decoupled detector and recognizer.

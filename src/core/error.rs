@@ -12,8 +12,8 @@ pub enum OcrError {
     #[error("Device execution provider error: {0}")]
     DeviceUnavailable(#[from] ort::Error<SessionBuilder>),
 
-    #[error("Invalid input or dimensions: {0}")]
-    InvalidInput(String),
+    #[error("Invalid model output: {0}")]
+    ModelOutputError(String),
 
     #[error("Feature is not active: {0}")]
     FeatureDisabled(String),

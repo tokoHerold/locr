@@ -1,18 +1,22 @@
-use std::cmp::{Ordering, max};
+use std::cmp::{Ordering, max, min};
 
 use image::{
     GenericImageView, Rgb, RgbImage,
     imageops::{FilterType, resize},
 };
-use ndarray::{Array4, ArrayView1, ArrayView2};
+use ndarray::{Array3, Array4, ArrayView1, ArrayView2, ArrayView3, Axis, s};
 use ort::{
     inputs,
-    session::{Session, SessionOutputs},
+    session::Session,
     value::TensorRef,
 };
 
 use crate::core::{
-    device::Device, error::OcrError, model_cache::ModelCache, traits::TextRecognizer, types::{BoundingBox, DetectionResult, RecognitionResult},
+    device::Device,
+    error::OcrError,
+    model_cache::ModelCache,
+    traits::TextRecognizer,
+    types::{BoundingBox, DetectionResult, RecognitionResult},
 };
 // Injects `pub static CHARACTER_DICT: [&str; <dict_size> + 2]` generated at build time.
 include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
@@ -27,7 +31,7 @@ pub static DETECTION_MODEL_BYTES: &[u8] =
 pub struct PaddleRecognizer {
     session: Session,
     /// Upper limit for batch dimension in model
-    batch_size: u32,
+    max_batch_size: usize,
 }
 
 /// PaddleOCR text recongizer with CTC decoding
@@ -36,18 +40,18 @@ impl PaddleRecognizer {
     ///
     /// # Arguments
     /// `device` - Device encapsulating hardare execution provider to run model on
-    /// `batch_size` - Upper limit in batch dimension. Higher values reduce ONNX runtime, but
+    /// `max_batch_size` - Upper limit in batch dimension. Higher values reduce ONNX runtime, but
     /// increase memory usage.
     ///
     /// # Errors
     ///
     /// Returns [`OcrError`] if the ONNX session cannot be initialized on the device.
-    pub fn new(device: Device, batch_size: u32) -> Result<Self, OcrError> {
+    pub fn new(device: Device, max_batch_size: usize) -> Result<Self, OcrError> {
         let cache = ModelCache::new();
         let session = cache.load_session(MODEL_NAME, DETECTION_MODEL_BYTES, device)?;
         Ok(Self {
             session,
-            batch_size,
+            max_batch_size: max_batch_size,
         })
     }
 }
@@ -56,20 +60,69 @@ impl TextRecognizer for PaddleRecognizer {
     fn recognize(
         &mut self,
         image: &RgbImage,
-        bounding_boxes: &Vec<DetectionResult>,
+        detection_results: &Vec<DetectionResult>,
     ) -> Result<Vec<RecognitionResult>, OcrError> {
+        let n_boxes = detection_results.len(); // Number of bounding boxes
+        let mut result: Vec<RecognitionResult> = Vec::with_capacity(n_boxes);
 
+        // Create batch of bounding boxes
+        for batch_idx in (0..n_boxes).step_by(self.max_batch_size) {
+            let batch_idx_end = min(batch_idx + self.max_batch_size, n_boxes);
+            let results_batch = &detection_results[batch_idx..batch_idx_end];
+            let mut max_width: usize = 0;
+            let sub_tensors: Vec<Array3<f32>> = results_batch
+                .iter()
+                .map(|result| -> Array3<f32> {
+                    let tensor = preprocess(image, &result.bounding_box);
+                    max_width = max_width.max(tensor.shape()[2]);
 
-        todo!()
-        // bounding_boxes
-        //     .iter()
-        //     .map(|bounding_box| -> Result<RecognitionResult, OcrError> {
-        //         let tensor = preprocess(image, bounding_box);
-        //         let tensor_ref = TensorRef::from_array_view(tensor.view()).unwrap();
-        //         let model_output = &self.session.run(inputs!["x" => tensor_ref])?;
-        //         Ok(decoode(&model_output)?)
-        //     })
-        //     .collect()
+                    tensor
+                })
+                .collect();
+            let batch_size = sub_tensors.len();
+
+            // Batch results onto axis 1, padding dimension 3 with zeros
+            let mut batch = Array4::<f32>::zeros((
+                batch_size,      // Batch Dimension
+                3 as usize,             // RGB
+                TARGET_HEIGHT as usize, // Fixed image height
+                max_width,              // Dynamic width, padded to largest image width
+            ));
+            for (idx, tensor) in sub_tensors.iter().enumerate() {
+                batch // Copy sub-tensors into batch
+                    .slice_mut(s![idx, .., .., ..tensor.shape()[2]])
+                    .assign(tensor);
+            }
+
+            // Invoke model
+            println!( "Running recognition model with batch dimension {}", batch.shape()[0]);
+            let tensor_ref = TensorRef::from_array_view(batch.view()).unwrap();
+            let model_output = &self.session.run(inputs!["x" => tensor_ref])?;
+
+            // Parse Model output [N, T, C] (Batch, Time Step, Class) into [T, C] and decode
+            let (shape, output_value) = model_output[0].try_extract_tensor::<f32>()?;
+            if shape.len() != 3 {
+                return Err(OcrError::ModelOutputError(
+                    "Recognition model delivered unexpected output.".to_string(),
+                ));
+            }
+            if shape[0] != batch_size as i64 {
+                return Err(OcrError::ModelOutputError(
+                    "Recognition model output batch dimension has a different cardinality than the input batch dimension!".to_string(),
+                ));
+            }
+            let batched_ctc_logits = ArrayView3::from_shape(
+                (shape[0] as usize, shape[1] as usize, shape[2] as usize),
+                &output_value,
+            )
+            .unwrap();
+            // Decode all results of batch
+            for ctc_idx in 0..batch_size {
+                let ctc_logits = batched_ctc_logits.index_axis(Axis(0), ctc_idx);
+                result.push(decode(ctc_logits)?);
+            }
+        }
+        Ok(result)
     }
 }
 
@@ -104,7 +157,7 @@ impl<'a> GenericImageView for CropView<'a> {
 /// # Returns
 ///
 /// A tensor that can be inserted into the input layer of the model.
-fn preprocess(image: &RgbImage, bounding_box: &BoundingBox) -> Array4<f32> {
+fn preprocess(image: &RgbImage, bounding_box: &BoundingBox) -> Array3<f32> {
     let crop = CropView {
         img: image,
         bounding_box: bounding_box,
@@ -119,7 +172,6 @@ fn preprocess(image: &RgbImage, bounding_box: &BoundingBox) -> Array4<f32> {
 
     // Convert resized crop into tensor
     let mut tensor = Array3::<f32>::zeros((
-        1,                      // Batch dimension
         3,                      // RGB
         TARGET_HEIGHT as usize, // Image height
         target_width as usize,  // Image width
@@ -128,9 +180,9 @@ fn preprocess(image: &RgbImage, bounding_box: &BoundingBox) -> Array4<f32> {
         (((pixel[idx] as f32) / 255.0) - 0.5) / 0.5 // Map [0, 255] -> [-1.0, 1.0]
     };
     for (x, y, pixel) in resized_crop.enumerate_pixels() {
-        tensor[[0, 0, y as usize, x as usize]] = normalize(pixel, 0);
-        tensor[[0, 1, y as usize, x as usize]] = normalize(pixel, 1);
-        tensor[[0, 2, y as usize, x as usize]] = normalize(pixel, 2);
+        tensor[[0, y as usize, x as usize]] = normalize(pixel, 0);
+        tensor[[1, y as usize, x as usize]] = normalize(pixel, 1);
+        tensor[[2, y as usize, x as usize]] = normalize(pixel, 2);
     }
     tensor
 }
@@ -144,17 +196,8 @@ fn preprocess(image: &RgbImage, bounding_box: &BoundingBox) -> Array4<f32> {
 /// # Returns
 ///
 /// A list of bounding boxes around each text segment.
-fn decoode(model_output: &SessionOutputs) -> Result<RecognitionResult, OcrError> {
-    // Parse Model output [1, T, C] (Batch, Time Step, Class) into [T, C]
-    let (shape, output_value) = model_output[0].try_extract_tensor::<f32>()?;
-    assert!(
-        shape.len() == 3,
-        "Recognition model delivered unexpected output."
-    );
-    assert_eq!(shape[0], 1, "Batch Dimension was not 1!");
-    let ctc_logits =
-        ArrayView2::from_shape((shape[1] as usize, shape[2] as usize), &output_value).unwrap();
-    let time_steps = shape[1] as usize;
+fn decode(ctc_logits: ArrayView2<f32>) -> Result<RecognitionResult, OcrError> {
+    let time_steps = ctc_logits.shape()[1] as usize;
     if time_steps == 0 {
         return Ok(RecognitionResult {
             text: String::new(),
@@ -167,7 +210,7 @@ fn decoode(model_output: &SessionOutputs) -> Result<RecognitionResult, OcrError>
 
     // For each time step, extract character index with highest probability
     const CTC_BLANK: usize = 0;
-    let (first_idx, probability) = argmax(&ctc_logits.row(0)).ok_or(OcrError::InvalidInput(
+    let (first_idx, probability) = argmax(&ctc_logits.row(0)).ok_or(OcrError::ModelOutputError(
         "Recognition model returned unexpected output".to_string(),
     ))?;
     let mut text = String::with_capacity(time_steps); // Number of time steps is upper limit
@@ -182,7 +225,7 @@ fn decoode(model_output: &SessionOutputs) -> Result<RecognitionResult, OcrError>
 
     for timestep_logits in ctc_logits.rows().into_iter().skip(1) {
         let (character_idx, probability) = argmax(&timestep_logits).ok_or(
-            OcrError::InvalidInput("Recognition model returned unexpected output".to_string()),
+            OcrError::ModelOutputError("Recognition model returned unexpected output".to_string()),
         )?;
         // Decode current character:
         if character_idx == last_idx {
