@@ -2,7 +2,7 @@ use image::{DynamicImage, RgbImage};
 
 use crate::core::{
     error::OcrError,
-    types::{BoundingBox, DetectionResult, OcrResult, RecognitionResult},
+    types::{DetectionResult, OcrResult, RecognitionResult},
 };
 
 /// Text detection contract responsible for localizing text regions in an image.
@@ -36,7 +36,7 @@ pub trait TextRecognizer {
     fn recognize(
         &mut self,
         image: &RgbImage,
-        bounding_boxes: Vec<&BoundingBox>,
+        bounding_boxes: &Vec<DetectionResult>,
     ) -> Result<Vec<RecognitionResult>, OcrError>;
 }
 

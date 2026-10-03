@@ -64,18 +64,9 @@ impl<D: TextDetector, R: TextRecognizer> OcrEngine for TwoStagePipeline<D, R> {
             &image.to_rgb8() // Create copy if image is in wrong format
         };
         let detection_results = self.detector.detect(&rgb_image)?;
-        let bounding_boxes = detection_results
-            .iter()
-            .map(
-                |DetectionResult {
-                     bounding_box,
-                     score: _,
-                 }| { bounding_box },
-            )
-            .collect();
-        let rec_results = self.recognizer.recognize(&rgb_image, bounding_boxes)?;
+        let recognition_results = self.recognizer.recognize(&rgb_image, &detection_results)?;
         Ok(OcrResult {
-            items: detection_results.iter().cloned().zip(rec_results).collect(),
+            items: detection_results.iter().cloned().zip(recognition_results).collect(),
             processing_time_ms: start.elapsed().as_millis() as u64,
         })
     }

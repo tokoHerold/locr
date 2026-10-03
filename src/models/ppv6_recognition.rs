@@ -12,11 +12,7 @@ use ort::{
 };
 
 use crate::core::{
-    device::Device,
-    error::OcrError,
-    model_cache::ModelCache,
-    traits::TextRecognizer,
-    types::{BoundingBox, RecognitionResult},
+    device::Device, error::OcrError, model_cache::ModelCache, traits::TextRecognizer, types::{BoundingBox, DetectionResult, RecognitionResult},
 };
 // Injects `pub static CHARACTER_DICT: [&str; <dict_size> + 2]` generated at build time.
 include!(concat!(env!("OUT_DIR"), "/dictionary.rs"));
@@ -60,17 +56,20 @@ impl TextRecognizer for PaddleRecognizer {
     fn recognize(
         &mut self,
         image: &RgbImage,
-        bounding_boxes: Vec<&BoundingBox>,
+        bounding_boxes: &Vec<DetectionResult>,
     ) -> Result<Vec<RecognitionResult>, OcrError> {
-        bounding_boxes
-            .iter()
-            .map(|bounding_box| -> Result<RecognitionResult, OcrError> {
-                let tensor = preprocess(image, bounding_box);
-                let tensor_ref = TensorRef::from_array_view(tensor.view()).unwrap();
-                let model_output = &self.session.run(inputs!["x" => tensor_ref])?;
-                Ok(decoode(&model_output)?)
-            })
-            .collect()
+
+
+        todo!()
+        // bounding_boxes
+        //     .iter()
+        //     .map(|bounding_box| -> Result<RecognitionResult, OcrError> {
+        //         let tensor = preprocess(image, bounding_box);
+        //         let tensor_ref = TensorRef::from_array_view(tensor.view()).unwrap();
+        //         let model_output = &self.session.run(inputs!["x" => tensor_ref])?;
+        //         Ok(decoode(&model_output)?)
+        //     })
+        //     .collect()
     }
 }
 
@@ -119,7 +118,7 @@ fn preprocess(image: &RgbImage, bounding_box: &BoundingBox) -> Array4<f32> {
     let resized_crop = resize(&crop, target_width, TARGET_HEIGHT, FilterType::Nearest);
 
     // Convert resized crop into tensor
-    let mut tensor = Array4::<f32>::zeros((
+    let mut tensor = Array3::<f32>::zeros((
         1,                      // Batch dimension
         3,                      // RGB
         TARGET_HEIGHT as usize, // Image height
