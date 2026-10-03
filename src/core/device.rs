@@ -32,22 +32,26 @@ impl Device {
             #[cfg(feature = "cuda")]
             Device::Cuda { device_id } => {
                 Ok(builder.with_execution_providers([ort::ep::CUDA::default()
-                    .with_device_id(*device_id) // TODO: maybe wanna specify that in the future
+                    .with_device_id(*device_id)
                     .build()])?)
             }
 
             #[cfg(not(feature = "cuda"))]
-            Device::Cuda { .. } => Err(OcrError::DeviceUnavailable(
-                "CUDA feature is not enabled".into(),
-            )),
+            Device::Cuda { .. } => Err(OcrError::FeatureDisabled("cuda".to_string())),
             #[cfg(feature = "directml")]
-            Device::DirectMl { device_id } => todo!(),
+            Device::DirectMl { device_id } => {
+                Ok(
+                    builder.with_execution_providers([ort::ep::DirectML::default()
+                        .with_device_id(*device_id)
+                        .build()])?,
+                )
+            }
             #[cfg(not(feature = "directml"))]
-            Device::DirectMl { .. } => todo!(),
+            Device::DirectMl { .. } => Err(OcrError::FeatureDisabled("directml".to_string())),
             #[cfg(feature = "coreml")]
-            Device::CoreMl => todo!(),
-            #[cfg(not(feature = "directml"))]
-            Device::CoreMl => todo!(),
+            Device::CoreMl => Ok(builder.with_execution_providers([[ep::CoreML::default()]])?),
+            #[cfg(not(feature = "coreml"))]
+            Device::CoreMl => Err(OcrError::FeatureDisabled("coreml".to_string())),
         }
     }
 }

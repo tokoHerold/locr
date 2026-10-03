@@ -19,7 +19,7 @@ fn default_engine(device: Device) -> Result<PaddleOcr, OcrError> {
 
 fn main() {
     // const DEVICE: Device = Device::Cpu;
-    const DEVICE: Device = Device::Cuda;
+    const DEVICE: Device = Device::Cuda { device_id: 0 };
     let image = ImageReader::open("data/test.png")
         .expect("Could not load image")
         .decode()

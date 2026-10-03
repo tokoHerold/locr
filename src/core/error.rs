@@ -14,4 +14,7 @@ pub enum OcrError {
 
     #[error("Invalid input or dimensions: {0}")]
     InvalidInput(String),
+
+    #[error("Feature is not active: {0}")]
+    FeatureDisabled(String),
 }
