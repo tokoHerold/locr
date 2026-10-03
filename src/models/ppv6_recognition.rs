@@ -30,19 +30,29 @@ pub static DETECTION_MODEL_BYTES: &[u8] =
 
 pub struct PaddleRecognizer {
     session: Session,
+    /// Upper limit for batch dimension in model
+    batch_size: u32,
 }
 
 /// PaddleOCR text recongizer with CTC decoding
 impl PaddleRecognizer {
     /// Initializes the recognizer from bundled model bytes and optimizes it for the specified [`Device`]
     ///
+    /// # Arguments
+    /// `device` - Device encapsulating hardare execution provider to run model on
+    /// `batch_size` - Upper limit in batch dimension. Higher values reduce ONNX runtime, but
+    /// increase memory usage.
+    ///
     /// # Errors
     ///
     /// Returns [`OcrError`] if the ONNX session cannot be initialized on the device.
-    pub fn new(device: Device) -> Result<Self, OcrError> {
+    pub fn new(device: Device, batch_size: u32) -> Result<Self, OcrError> {
         let cache = ModelCache::new();
         let session = cache.load_session(MODEL_NAME, DETECTION_MODEL_BYTES, device)?;
-        Ok(Self { session })
+        Ok(Self {
+            session,
+            batch_size,
+        })
     }
 }
 

@@ -11,21 +11,21 @@ use crate::{
 };
 
 type PaddleOcr = TwoStagePipeline<PaddleDetector, PaddleRecognizer>;
-fn default_engine(device: Device) -> Result<PaddleOcr, OcrError> {
+fn default_engine(device: Device, max_batch_size: u32) -> Result<PaddleOcr, OcrError> {
     let detector = PaddleDetector::new(device)?;
-    let recognizer = PaddleRecognizer::new(device)?;
+    let recognizer = PaddleRecognizer::new(device, max_batch_size)?;
     Ok(PaddleOcr::new(detector, recognizer))
 }
 
 fn main() {
     // const DEVICE: Device = Device::Cpu;
-    const DEVICE: Device = Device::Cuda { device_id: 0 };
+    const DEVICE: Device = Device::Cuda{device_id: 0};
     let image = ImageReader::open("data/test.png")
         .expect("Could not load image")
         .decode()
         .expect("Invalid image format");
 
-    let mut engine = default_engine(DEVICE).unwrap();
+    let mut engine = default_engine(DEVICE, 32).unwrap();
     let result = engine.process(&image).unwrap();
     println!(
         "Found {} text blocks in {} ms",
