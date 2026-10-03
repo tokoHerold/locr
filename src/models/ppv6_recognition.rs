@@ -95,7 +95,6 @@ impl TextRecognizer for PaddleRecognizer {
             }
 
             // Invoke model
-            println!( "Running recognition model with batch dimension {}", batch.shape()[0]);
             let tensor_ref = TensorRef::from_array_view(batch.view()).unwrap();
             let model_output = &self.session.run(inputs!["x" => tensor_ref])?;
 
