@@ -8,9 +8,9 @@ pub enum Device {
     #[default]
     Cpu,
     /// NVIDIA CUDA execution provider, with specified GPU device index.
-    Cuda,
+    Cuda { device_id: i32 },
     /// Microsoft DirectML execution provider (cross-vendor Windows/WSL2).
-    DirectMl,
+    DirectMl { device_id: i32 },
     /// Apple Silicon CoreML execution provider.
     CoreMl,
 }
@@ -20,8 +20,8 @@ impl Device {
     pub fn get_identifier(&self) -> &str {
         match self {
             Device::Cpu => "cpu",
-            Device::Cuda => "cuda",
-            Device::DirectMl => "directml",
+            Device::Cuda { .. } => "cuda",
+            Device::DirectMl { .. } => "directml",
             Device::CoreMl => "coreml",
         }
     }
@@ -30,9 +30,11 @@ impl Device {
         match self {
             Device::Cpu => Ok(builder),
             #[cfg(feature = "cuda")]
-            Device::Cuda => Ok(builder.with_execution_providers([ort::ep::CUDA::default()
-                .with_device_id(0) // TODO: maybe wanna specify that in the future
-                .build()])?),
+            Device::Cuda { device_id } => {
+                Ok(builder.with_execution_providers([ort::ep::CUDA::default()
+                    .with_device_id(*device_id) // TODO: maybe wanna specify that in the future
+                    .build()])?)
+            }
 
             #[cfg(not(feature = "cuda"))]
             Device::Cuda { .. } => Err(OcrError::DeviceUnavailable(
