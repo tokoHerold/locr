@@ -1,3 +1,5 @@
+use std::process::ExitCode;
+
 use ort::session::builder::SessionBuilder;
 use thiserror::Error;
 
@@ -17,4 +19,21 @@ pub enum OcrError {
 
     #[error("Feature is not active: {0}")]
     FeatureDisabled(String),
+
+    #[error("Invalid argument: {0}")]
+    InvalidArgument(String),
+}
+
+impl OcrError {
+    pub fn report(self) -> std::process::ExitCode {
+        match self {
+            OcrError::Ort( message ) => eprintln!("{message}"),
+            OcrError::Image( message ) => eprintln!("{message}"),
+            OcrError::DeviceUnavailable( message ) => eprintln!("{message}"),
+            OcrError::ModelOutputError( message ) => eprintln!("{message}"),
+            OcrError::FeatureDisabled( message ) => eprintln!("{message}"),
+            OcrError::InvalidArgument( message ) => eprintln!("{message}"),
+        }
+        ExitCode::FAILURE
+    }
 }

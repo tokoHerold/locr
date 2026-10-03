@@ -16,6 +16,17 @@ pub enum Device {
 }
 
 impl Device {
+    /// Parses a string representation into a [`Device`] enum variant.
+    pub fn from_str(string: &str) -> Result<Device, OcrError> {
+        Ok(match string.to_lowercase().as_str() {
+            "cpu" => Device::Cpu,
+            "cuda" => Device::Cuda { device_id: 0 },
+            "directml" => Device::DirectMl { device_id: 0 },
+            "coreml" => Device::CoreMl,
+            _ => return Err(OcrError::InvalidArgument(format!("No such device \'{}\'", string))),
+        })
+    }
+
     /// Returns a short unique identifier for cache file naming.
     pub fn get_identifier(&self) -> &str {
         match self {

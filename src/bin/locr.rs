@@ -1,36 +1,67 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    process::{ExitCode, exit},
+};
 
 use clap::Parser;
+use image::ImageReader;
+use locr::{Device, OcrEngine, OcrError, default_engine};
 
-/// Command-line arguments for the `locr` standalone executable.
 #[derive(Parser, Debug)]
-#[command(name = "locr", version = "0.1.0", about = "High-performance standalone OCR")]
+#[command(
+    name = "locr",
+    version,
+    about = "Optical Character Recogntion (OCR) CLI for text extraction from images"
+)]
+
 struct Cli {
     /// Path to input image
     #[arg(required = true)]
     image_path: PathBuf,
 
-    /// Target execution device: cpu, cuda, directml, coreml, auto
+    /// Target execution device: cpu, cuda, directml, coreml
     #[arg(short, long, default_value = "cpu")]
     device: String,
-
-    /// Output results as JSON
-    #[arg(long)]
-    json: bool,
 }
 
+fn run() -> Result<(), OcrError> {
+    let args = Cli::parse();
+    let device = Device::from_str(&args.device)?;
+    let img = ImageReader::open(&args.image_path);
+    if let Err(error) = img {
+        eprintln!("Failed to open image: {}", error.to_string());
+        exit(1);
+    }
 
-fn main() {
-    // const DEVICE: Device = Device::Cpu; // TODO: make configurable
-    // let mut engine = default_engine(DEVICE, 8).unwrap();
-    // let result = engine.process(&image).unwrap();
-    // println!(
-    //     "Found {} text blocks in {} ms",
-    //     result.items.len(),
-    //     result.processing_time_ms
-    // );
-    // println!("{:?}", result.items);
+    let img = img.unwrap().decode()?;
 
-    // println!("{:?}", results);
-    println!("Hello, world!");
+    let mut engine = default_engine(device, 8)?;
+    let result = engine.process(&img)?;
+
+    println!("\n{}", "=".repeat(92));
+    println!(
+        "{:<3} | {:<28} | {:<9} | {:<9} | Recognized Text",
+        "#", "Bounding Box (x, y, w, h)", "Det Score", "Rec Score"
+    );
+    println!("{}", "-".repeat(92));
+    for (idx, (detection_result, recognition_result)) in result.items.iter().enumerate() {
+        let bbox = &detection_result.bounding_box;
+        let box_str = format!("({}, {}, {}, {})", bbox.x, bbox.y, bbox.width, bbox.height);
+        println!(
+            "{:<3} | {:<28} | {:<9.4} | {:<9.4} | {}",
+            idx + 1, box_str, detection_result.score, recognition_result.score, recognition_result.text
+        );
+    }
+    println!("{}", "=".repeat(92));
+    println!("Processed {} text items in {} ms.", result.items.len(), result.processing_time_ms);
+    // println!("Hello, world!");
+    Ok(())
+}
+
+fn main() -> ExitCode {
+    return if let Err(ocr_error) = run() {
+        ocr_error.report()
+    } else {
+        ExitCode::SUCCESS
+    };
 }
