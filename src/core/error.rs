@@ -22,6 +22,9 @@ pub enum OcrError {
 
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
+
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 impl OcrError {
@@ -33,6 +36,7 @@ impl OcrError {
             OcrError::ModelOutputError( message ) => eprintln!("{message}"),
             OcrError::FeatureDisabled( message ) => eprintln!("{message}"),
             OcrError::InvalidArgument( message ) => eprintln!("{message}"),
+            OcrError::Io( message ) => eprintln!("{message}"),
         }
         ExitCode::FAILURE
     }

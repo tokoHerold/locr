@@ -3,8 +3,8 @@ pub mod models;
 pub mod pipeline;
 
 pub use core::{
-    BoundingBox, DetectionResult, Device, OcrEngine, OcrError, OcrResult, RecognitionResult,
-    TextDetector, TextRecognizer,
+    BoundingBox, DetectionResult, Device, ModelCache, OcrEngine, OcrError, OcrResult,
+    RecognitionResult, TextDetector, TextRecognizer,
 };
 pub use models::{PaddleDetector, PaddleRecognizer};
 pub use pipeline::TwoStagePipeline;

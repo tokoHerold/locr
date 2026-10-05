@@ -75,4 +75,37 @@ impl ModelCache {
             None => Ok(builder.commit_from_memory(&compiler.compile_to_buffer()?)?),
         }
     }
+
+    /// Removes all cached ONNX model files from the local cache directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OcrError`] if the cache directory exists but cannot be read.
+    pub fn flush(&self) -> Result<(), OcrError> {
+        let Some(cache_dir) = &self.cache_dir else {
+            return Ok(());
+        };
+
+        if !cache_dir.exists() {
+            return Ok(());
+        }
+
+        for entry in fs::read_dir(cache_dir)? {
+            match entry {
+                Ok(entry) => {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("onnx") {
+                        if let Err(err) = fs::remove_file(&path) {
+                            eprintln!("Failed to remove cache file {:?}: {}", path, err);
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("Failed to read cache directory entry: {}", err);
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
