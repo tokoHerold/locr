@@ -47,11 +47,11 @@ impl<D: TextDetector, R: TextRecognizer> OcrEngine for TwoStagePipeline<D, R> {
     /// Returns an [`OcrError`] if text detection or recognition fails.
     ///
     /// # Examples
-    /// ```rust
+    /// ```no_run
     /// use locr::{default_engine, Device, OcrEngine};
     /// use image::open;
     ///
-    /// let mut engine = default_engine(Device::Cpu).unwrap();
+    /// let mut engine = default_engine(Device::Cpu, 8).unwrap();
     /// let img = open("document.png").unwrap();
     /// let result = engine.process(&img).unwrap();
     /// println!("Found {} text blocks in {} ms", result.items.len(), result.processing_time_ms);
