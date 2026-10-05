@@ -14,8 +14,11 @@ path = "src/bin/locr.rs"
 required-features = ["cli"]
 
 [features]
-default = ["cli"]
+default = ["cli", "paddleocr-rec-tiny"]
 cli = ["dep:clap"]
+# Recognition model variants
+paddleocr-rec-tiny = []
+paddleocr-rec-medium = []
 # Execution providers
 cuda = ["ort/cuda"]
 directml = ["ort/directml"]
