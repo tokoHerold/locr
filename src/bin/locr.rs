@@ -5,7 +5,9 @@ use std::{
 
 use clap::Parser;
 use image::ImageReader;
-use locr::{Device, ModelCache, OcrEngine, OcrError, default_engine};
+use locr::{Device, OcrEngine, OcrError, default_engine};
+#[cfg(feature = "backend-ort")]
+use locr::ModelCache;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -31,6 +33,7 @@ struct Cli {
 fn run() -> Result<(), OcrError> {
     let args = Cli::parse();
 
+    #[cfg(feature = "backend-ort")]
     if args.clear_cache {
         let cache = ModelCache::new();
         cache.flush()?;

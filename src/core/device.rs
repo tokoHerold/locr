@@ -1,3 +1,4 @@
+#[cfg(feature = "backend-ort")]
 use ort::session::builder::SessionBuilder;
 
 use crate::core::error::OcrError;
@@ -36,7 +37,10 @@ impl Device {
             Device::CoreMl => "coreml",
         }
     }
+}
 
+#[cfg(feature = "backend-ort")]
+impl Device {
     pub fn configure_session(&self, builder: SessionBuilder) -> Result<SessionBuilder, OcrError> {
         match self {
             Device::Cpu => Ok(builder),

@@ -2,10 +2,12 @@
 
 pub mod device;
 pub mod error;
+#[cfg(feature = "backend-ort")]
 pub mod model_cache;
 pub mod traits;
 pub mod types;
 
+#[cfg(feature = "backend-ort")]
 pub use model_cache::ModelCache;
 pub use device::Device;
 pub use error::OcrError;
