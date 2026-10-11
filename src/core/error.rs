@@ -25,6 +25,9 @@ pub enum OcrError {
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("Dimension or shape mismatch: {0}")]
+    DimensionMismatch(#[from] ndarray::ShapeError),
 }
 
 impl OcrError {
@@ -37,6 +40,7 @@ impl OcrError {
             OcrError::FeatureDisabled( message ) => eprintln!("{message}"),
             OcrError::InvalidArgument( message ) => eprintln!("{message}"),
             OcrError::Io( message ) => eprintln!("{message}"),
+            OcrError::DimensionMismatch(message) => eprintln!("{message}"),
         }
         ExitCode::FAILURE
     }

@@ -1,9 +1,47 @@
 use image::{DynamicImage, RgbImage};
+use ndarray::{ArrayView, Dimension, IxDyn};
 
 use crate::core::{
     error::OcrError,
     types::{DetectionResult, OcrResult, RecognitionResult},
 };
+
+pub trait Model<D: Dimension> {
+    /// Output buffer tied to the model session borrow lifetime `'a`
+    type Output<'a>: ModelOutput
+    where
+        Self: 'a;
+
+    /// Runs forward inference on an [`ndarray`] tensor view of rank `D`.
+    ///
+    /// # Arguments:
+    /// `input` - input layer of the model
+    ///
+    /// # Returns
+    /// A [`ModelOutput`] struct containing the inference results on success, or an [`OcrError`].
+    fn forward<'a>(
+        &'a mut self,
+        input: ArrayView<'a, f32, D>,
+    ) -> Result<Self::Output<'a>, OcrError>;
+}
+
+/// Output buffer abstraction providing shape inspection and slice access.
+pub trait ModelOutput {
+    /// Retrieves the original shape of the output tensor
+    fn shape(&self) -> &[usize];
+
+    /// Retrieves the model output as a flat slice
+    fn raw_data(&self) -> &[f32];
+
+    /// Retrieves an [`ArrayView`] of a specific rank from the model output.
+    ///
+    /// # Returns
+    /// Returns `Ok(ArrayView)` on success, or an error on a dimensionality mismatch.
+    fn view<'a, D: Dimension>(&'a self) -> Result<ArrayView<'a, f32, D>, OcrError> {
+        Ok(ArrayView::from_shape(IxDyn(self.shape()), self.raw_data())?
+            .into_dimensionality::<D>()?)
+    }
+}
 
 /// Text detection contract responsible for localizing text regions in an image.
 pub trait TextDetector {
