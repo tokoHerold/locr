@@ -2,6 +2,8 @@
 
 pub mod ppv6_detection;
 pub mod ppv6_recognition;
+pub mod backends;
 
 pub use ppv6_detection::PaddleDetector;
 pub use ppv6_recognition::PaddleRecognizer;
+

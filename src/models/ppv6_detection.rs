@@ -2,25 +2,11 @@ use std::cmp::max;
 
 use image::{GrayImage, Luma, RgbImage, imageops::resize};
 use imageproc::region_labelling::{Connectivity, connected_components};
-use ndarray::Array4;
-use ort::{
-    inputs,
-    session::{Session, SessionOutputs},
-    value::TensorRef,
-};
+use ndarray::{Array4, Ix4};
 
 use crate::core::{
-    device::Device,
-    error::OcrError,
-    model_cache::ModelCache,
-    traits::TextDetector,
-    types::{BoundingBox, DetectionResult},
+    error::OcrError, traits::{Model, ModelOutput, TextDetector}, types::{BoundingBox, DetectionResult},
 };
-
-const MODEL_NAME: &str = "PP_OCRv6_tiny_det";
-/// Embedded PaddlePaddle v6 ONNX model bytes for text detection.
-pub static DETECTION_MODEL_BYTES: &[u8] =
-    include_bytes!("../../data/models/PP_OCRv6_tiny_det.onnx");
 
 pub struct PaddleConfig {
     /// Minimum certainty of pixels to be recognized as text; range in [0.0, 1.0]
@@ -39,8 +25,8 @@ pub struct PaddleConfig {
 }
 
 /// PaddleOCR DBNet text detection model.
-pub struct PaddleDetector {
-    session: Session,
+pub struct PaddleDetector<M> {
+    model: M,
     config: PaddleConfig,
 }
 
@@ -54,15 +40,13 @@ struct TextArea {
     score_sum: f32,
 }
 
-impl PaddleDetector {
+impl<M> PaddleDetector<M> {
     /// Initializes the detector from bundled model bytes and optimizes it for the specified [`Device`]
     ///
     /// # Errors
     ///
     /// Returns [`OcrError`] if the ONNX session cannot be initialized on the device.
-    pub fn new(device: Device) -> Result<Self, OcrError> {
-        let cache = ModelCache::new();
-        let session = cache.load_session(MODEL_NAME, DETECTION_MODEL_BYTES, device)?;
+    pub fn from_model(model: M) -> Self {
         let config = PaddleConfig {
             detection_threshold: 0.3,
             box_threshold: 0.5,
@@ -71,15 +55,14 @@ impl PaddleDetector {
             normalization_mean: [0.485, 0.456, 0.406],
             normalization_std: [0.229, 0.224, 0.225],
         };
-        Ok(Self { session, config })
+        Self { model, config }
     }
 }
 
-impl TextDetector for PaddleDetector {
+impl<M: Model<Ix4>> TextDetector for PaddleDetector<M> {
     fn detect(&mut self, image: &RgbImage) -> Result<Vec<DetectionResult>, OcrError> {
         let tensor = preprocess(&self.config, image);
-        let tensor_view = TensorRef::from_array_view(tensor.view()).unwrap();
-        let model_output = &self.session.run(inputs!["x" => tensor_view])?;
+        let model_output = self.model.forward(tensor.view())?;
         Ok(postprocess(&self.config, &model_output, image)?)
     }
 }
@@ -147,13 +130,14 @@ fn preprocess(config: &PaddleConfig, image: &RgbImage) -> Array4<f32> {
 /// # Returns
 ///
 /// A list of bounding boxes around each text segment.
-fn postprocess(
+fn postprocess<O: ModelOutput>(
     config: &PaddleConfig,
-    model_output: &SessionOutputs,
+    model_output: &O,
     image: &RgbImage,
 ) -> Result<Vec<DetectionResult>, OcrError> {
     // Extract shape & data from model output
-    let (shape, output_value) = model_output[0].try_extract_tensor::<f32>()?;
+    let shape = model_output.shape();
+    let output_value = model_output.raw_data();
     let height = shape[2] as usize;
     let width = shape[3] as usize;
 

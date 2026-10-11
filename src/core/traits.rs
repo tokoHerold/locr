@@ -6,6 +6,9 @@ use crate::core::{
     types::{DetectionResult, OcrResult, RecognitionResult},
 };
 
+/// Generic, shape-agnostic model execution trait.
+///
+/// Parametrized over input dimension `D: Dimension`.
 pub trait Model<D: Dimension> {
     /// Output buffer tied to the model session borrow lifetime `'a`
     type Output<'a>: ModelOutput
